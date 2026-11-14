@@ -34,6 +34,11 @@ class DrawConfig(BaseSettings, env_prefix="KEYMAP_", extra="ignore"):
         y: float
         # radius in key units
         r: float = 1.0
+        # radius of the ball, as a ratio of `r` (the ring around it)
+        ball_ratio: float = 0.75
+        # optional SVG path data for a housing drawn under the ring, in key units relative to the trackball
+        # center; only absolute commands (M, L, H, V, C, S, Q, T, A, Z) are supported
+        housing: str = ""
         # optional legend drawn at the center, can use glyphs
         legend: str = ""
         # names of the layers to draw the trackball on, draw on all layers if empty
@@ -131,7 +136,7 @@ class DrawConfig(BaseSettings, env_prefix="KEYMAP_", extra="ignore"):
             }
 
             /* default trackball styling, only used if trackballs are set */
-            circle.trackball {
+            circle.trackball, path.trackball-housing {
                 fill: #f6f8fa;
                 stroke: #c9cccf;
                 stroke-width: 1;
@@ -253,7 +258,7 @@ class DrawConfig(BaseSettings, env_prefix="KEYMAP_", extra="ignore"):
             svg.keymap { fill: #d1d6db; }
             rect.key { fill: #3f4750; }
             rect.key, rect.combo { stroke: #60666c; }
-            circle.trackball { fill: #3f4750; stroke: #60666c; }
+            circle.trackball, path.trackball-housing { fill: #3f4750; stroke: #60666c; }
             circle.trackball-ball { fill: #2d333a; stroke: #60666c; }
             rect.combo, rect.combo-separate { fill: #1f3d7a; }
             rect.held, rect.combo.held { fill: #854747; }

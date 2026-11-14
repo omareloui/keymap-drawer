@@ -4,6 +4,7 @@ keymap with layers and optionally combo definitions, then can draw an SVG
 representation of the keymap using these two.
 """
 
+import re
 from copy import deepcopy
 from html import escape
 from io import StringIO
@@ -149,14 +150,47 @@ class KeymapDrawer(ComboDrawerMixin, UtilsMixin):
 
         self.out.write("</g>\n")
 
+    @staticmethod
+    def _path_points(path: str) -> list[Point]:
+        """Return the end and control points of an SVG path made of absolute commands, for bounding box purposes."""
+        points: list[Point] = []
+        cur = Point(0.0, 0.0)
+        for cmd, args_str in re.findall(r"([A-Za-z])([^A-Za-z]*)", path):
+            args = [float(a) for a in re.findall(r"[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?", args_str)]
+            match cmd:
+                case "H":
+                    coords = [Point(x, cur.y) for x in args]
+                case "V":
+                    coords = [Point(cur.x, y) for y in args]
+                case "A":  # rx ry rotation large-arc sweep x y
+                    coords = []
+                    for i in range(0, len(args) - 6, 7):
+                        rx, ry, end = args[i], args[i + 1], Point(args[i + 5], args[i + 6])
+                        # conservatively include the arc's possible extent around both endpoints
+                        r = max(rx, ry)
+                        coords += [end, cur + Point(r, r), cur - Point(r, r), end + Point(r, r), end - Point(r, r)]
+                        cur = end
+                case "Z" | "z":
+                    coords = []
+                case _ if cmd.isupper():
+                    coords = [Point(args[i], args[i + 1]) for i in range(0, len(args) - 1, 2)]
+                case _:
+                    raise ValueError(f'Only absolute commands are supported in trackball housing paths, got "{cmd}"')
+            if coords and cmd != "A":
+                cur = coords[-1]
+            points += coords
+        return points
+
     def trackballs_extent(self) -> Point:
         """Return the bottom right coordinate covered by all configured trackballs, in pixels."""
         if not self.cfg.trackballs:
             return Point(0.0, 0.0)
-        return Point(
-            max((t.x + t.r) * self.cfg.key_h for t in self.cfg.trackballs),
-            max((t.y + t.r) * self.cfg.key_h for t in self.cfg.trackballs),
-        )
+        points = []
+        for t in self.cfg.trackballs:
+            center = Point(t.x, t.y)
+            points += [center + Point(t.r, t.r)]
+            points += [center + p for p in self._path_points(t.housing)]
+        return Point(max(p.x for p in points) * self.cfg.key_h, max(p.y for p in points) * self.cfg.key_h)
 
     def print_trackballs(self, layer_name: str) -> None:
         """Print SVG code for the trackballs configured to be drawn on the given layer."""
@@ -168,8 +202,13 @@ class KeymapDrawer(ComboDrawerMixin, UtilsMixin):
             self.out.write(
                 f'<g transform="translate({round(center.x)}, {round(center.y)})" class="trackball trackball-{ind}">\n'
             )
+            if trackball.housing:
+                self.out.write(
+                    f'<path d="{escape(trackball.housing)}" transform="scale({self.cfg.key_h})" '
+                    'vector-effect="non-scaling-stroke" class="trackball-housing"/>\n'
+                )
             self.out.write(f'<circle r="{round(radius)}" class="trackball"/>\n')
-            self.out.write(f'<circle r="{round(radius * 0.75)}" class="trackball-ball"/>\n')
+            self.out.write(f'<circle r="{round(radius * trackball.ball_ratio)}" class="trackball-ball"/>\n')
             self._draw_legend(Point(0, 0), [trackball.legend], classes=["trackball"], legend_type="tap")
             self.out.write("</g>\n")
 
@@ -213,13 +252,13 @@ class KeymapDrawer(ComboDrawerMixin, UtilsMixin):
                 writer = self.out
                 self.out = temp_buffer
 
+                # draw trackballs to temp buffer, before the keys so that keys are drawn over their housings
+                if draw_trackballs:
+                    self.print_trackballs(name)
+
                 # draw keys to temp buffer
                 for key_ind, (p_key, l_key) in enumerate(zip(layout.keys, layer_keys)):
                     self.print_key(p_key, l_key, key_ind)
-
-                # draw trackballs to temp buffer
-                if draw_trackballs:
-                    self.print_trackballs(name)
 
                 # draw combos to temp buffer and calculate top/bottom y coordinates
                 min_y, max_y = self.print_combos_for_layer(combos_per_layer.get(name, []))

@@ -155,18 +155,25 @@ A list of trackballs (or other round pointing devices) to draw as circles alongs
 The drawing area of each layer is extended to fit them. Each item is a mapping with the fields:
 
 - **`x`**, **`y`** (type: `float`): Center of the trackball in key units (multiples of `key_h`), relative to the top left corner of the physical layout.
-- **`r`** (type: `float`): Radius in key units. _Default:_ `1.0`
+- **`r`** (type: `float`): Radius of the ring around the ball in key units. _Default:_ `1.0`
+- **`ball_ratio`** (type: `float`): Radius of the ball as a ratio of `r`. _Default:_ `0.75`
+- **`housing`** (type: `str`): Optional SVG path data for the shell of the device, drawn under the ring, in key units relative to the trackball center.
+  Only absolute path commands are supported. Keys are drawn over trackballs, so the housing can tuck under neighboring keys. _Default:_ `""`
 - **`legend`** (type: `str`): Optional legend drawn at the center, can use [glyphs](#glyphs). _Default:_ `""`
 - **`layers`** (type: `list[str]`): Names of the layers to draw the trackball on; it is drawn on all layers if empty. _Default:_ `[]`
 
 Trackballs are not drawn on combo diagrams. They can be styled with the `circle.trackball` (outer ring) and `circle.trackball-ball` (ball)
-CSS selectors in `svg_extra_style`, and each is wrapped in a group with classes `trackball` and `trackball-<index>`.
+CSS selectors, and the housing with `path.trackball-housing`, in `svg_extra_style`, and each is wrapped in a group with classes `trackball` and `trackball-<index>`.
 
 ```yaml
 draw_config:
   trackballs:
     - { x: 15.5, y: 4.5, r: 0.9 }
     - { x: 15.5, y: 4.5, r: 0.9, legend: "$$mdi:mouse$$", layers: [MOUSE] }
+    - x: 8.35
+      y: 3.4
+      r: 1.2
+      housing: "M -0.8,-2.75 H 0.8 V -0.73 A 1.2,1.2 0 0 1 0.8,0.9 L 0.5,3.4 H -0.5 L -0.8,0.9 A 1.2,1.2 0 0 1 -0.8,-0.73 Z"
 ```
 
 _Type:_ `list[TrackballSpec]`
