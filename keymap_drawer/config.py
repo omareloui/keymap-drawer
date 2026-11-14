@@ -39,6 +39,8 @@ class DrawConfig(BaseSettings, env_prefix="KEYMAP_", extra="ignore"):
         # optional SVG path data for a housing drawn under the ring, in key units relative to the trackball
         # center; only absolute commands (M, L, H, V, C, S, Q, T, A, Z) are supported
         housing: str = ""
+        # whether to draw `housing`, allows turning it off without removing the path
+        draw_housing: bool = True
         # optional legend drawn at the center, can use glyphs
         legend: str = ""
         # names of the layers to draw the trackball on, draw on all layers if empty

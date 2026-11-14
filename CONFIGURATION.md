@@ -159,6 +159,7 @@ The drawing area of each layer is extended to fit them. Each item is a mapping w
 - **`ball_ratio`** (type: `float`): Radius of the ball as a ratio of `r`. _Default:_ `0.75`
 - **`housing`** (type: `str`): Optional SVG path data for the shell of the device, drawn under the ring, in key units relative to the trackball center.
   Only absolute path commands are supported. Keys are drawn over trackballs, so the housing can tuck under neighboring keys. _Default:_ `""`
+- **`draw_housing`** (type: `bool`): Whether to draw `housing`, to turn it off without removing the path. _Default:_ `true`
 - **`legend`** (type: `str`): Optional legend drawn at the center, can use [glyphs](#glyphs). _Default:_ `""`
 - **`layers`** (type: `list[str]`): Names of the layers to draw the trackball on; it is drawn on all layers if empty. _Default:_ `[]`
 

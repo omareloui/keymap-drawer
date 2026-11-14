@@ -189,7 +189,8 @@ class KeymapDrawer(ComboDrawerMixin, UtilsMixin):
         for t in self.cfg.trackballs:
             center = Point(t.x, t.y)
             points += [center + Point(t.r, t.r)]
-            points += [center + p for p in self._path_points(t.housing)]
+            if t.draw_housing:
+                points += [center + p for p in self._path_points(t.housing)]
         return Point(max(p.x for p in points) * self.cfg.key_h, max(p.y for p in points) * self.cfg.key_h)
 
     def print_trackballs(self, layer_name: str) -> None:
@@ -202,7 +203,7 @@ class KeymapDrawer(ComboDrawerMixin, UtilsMixin):
             self.out.write(
                 f'<g transform="translate({round(center.x)}, {round(center.y)})" class="trackball trackball-{ind}">\n'
             )
-            if trackball.housing:
+            if trackball.housing and trackball.draw_housing:
                 self.out.write(
                     f'<path d="{escape(trackball.housing)}" transform="scale({self.cfg.key_h})" '
                     'vector-effect="non-scaling-stroke" class="trackball-housing"/>\n'
