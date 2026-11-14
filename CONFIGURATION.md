@@ -149,6 +149,30 @@ A mapping of certain field names to their values, characterizing key side drawin
 - **`rel_w`**, **`rel_y`** (type: `float`): Delta dimension between external key rectangle and internal key rectangle. _Default:_ `12`, `12`
 - **`rx`**, **`ry`** (type: `float`): Curvature of the rounded internal key rectangle. _Default:_ `4`, `4`
 
+#### `trackballs`
+
+A list of trackballs (or other round pointing devices) to draw as circles alongside the keys of each layer.
+The drawing area of each layer is extended to fit them. Each item is a mapping with the fields:
+
+- **`x`**, **`y`** (type: `float`): Center of the trackball in key units (multiples of `key_h`), relative to the top left corner of the physical layout.
+- **`r`** (type: `float`): Radius in key units. _Default:_ `1.0`
+- **`legend`** (type: `str`): Optional legend drawn at the center, can use [glyphs](#glyphs). _Default:_ `""`
+- **`layers`** (type: `list[str]`): Names of the layers to draw the trackball on; it is drawn on all layers if empty. _Default:_ `[]`
+
+Trackballs are not drawn on combo diagrams. They can be styled with the `circle.trackball` (outer ring) and `circle.trackball-ball` (ball)
+CSS selectors in `svg_extra_style`, and each is wrapped in a group with classes `trackball` and `trackball-<index>`.
+
+```yaml
+draw_config:
+  trackballs:
+    - { x: 15.5, y: 4.5, r: 0.9 }
+    - { x: 15.5, y: 4.5, r: 0.9, legend: "$$mdi:mouse$$", layers: [MOUSE] }
+```
+
+_Type:_ `list[TrackballSpec]`
+
+_Default:_ `[]`
+
 #### `svg_style`[^1]
 
 [^1]: Excluded from `keymap dump-config` by default, can be modified by manually adding it to the config file.

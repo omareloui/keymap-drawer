@@ -149,7 +149,31 @@ class KeymapDrawer(ComboDrawerMixin, UtilsMixin):
 
         self.out.write("</g>\n")
 
-    def print_layers(  # pylint: disable=too-many-locals
+    def trackballs_extent(self) -> Point:
+        """Return the bottom right coordinate covered by all configured trackballs, in pixels."""
+        if not self.cfg.trackballs:
+            return Point(0.0, 0.0)
+        return Point(
+            max((t.x + t.r) * self.cfg.key_h for t in self.cfg.trackballs),
+            max((t.y + t.r) * self.cfg.key_h for t in self.cfg.trackballs),
+        )
+
+    def print_trackballs(self, layer_name: str) -> None:
+        """Print SVG code for the trackballs configured to be drawn on the given layer."""
+        for ind, trackball in enumerate(self.cfg.trackballs):
+            if trackball.layers and layer_name not in trackball.layers:
+                continue
+            center = Point(trackball.x, trackball.y) * self.cfg.key_h
+            radius = trackball.r * self.cfg.key_h - self.cfg.inner_pad_w
+            self.out.write(
+                f'<g transform="translate({round(center.x)}, {round(center.y)})" class="trackball trackball-{ind}">\n'
+            )
+            self.out.write(f'<circle r="{round(radius)}" class="trackball"/>\n')
+            self.out.write(f'<circle r="{round(radius * 0.75)}" class="trackball-ball"/>\n')
+            self._draw_legend(Point(0, 0), [trackball.legend], classes=["trackball"], legend_type="tap")
+            self.out.write("</g>\n")
+
+    def print_layers(  # pylint: disable=too-many-locals,too-many-arguments
         self,
         p: Point,
         layout: PhysicalLayout,
@@ -158,6 +182,7 @@ class KeymapDrawer(ComboDrawerMixin, UtilsMixin):
         n_cols: int = 1,
         draw_header: bool = True,
         pad_divisor: int = 1,
+        draw_trackballs: bool = True,
     ) -> Point:
         """
         Print SVG code for keys for all layers (including combos on them) starting at coordinate p,
@@ -166,7 +191,10 @@ class KeymapDrawer(ComboDrawerMixin, UtilsMixin):
         outer_pad_w = self.cfg.outer_pad_w // pad_divisor
         p += Point(self.cfg.outer_pad_w - outer_pad_w, 0)
         original_x = p.x
-        col_width = layout.width + 2 * outer_pad_w
+        trackballs_extent = self.trackballs_extent() if draw_trackballs else Point(0.0, 0.0)
+        layout_width = max(layout.width, trackballs_extent.x)
+        layout_height = max(layout.height, trackballs_extent.y)
+        col_width = layout_width + 2 * outer_pad_w
         max_height = 0.0
         for ind, (name, layer_keys) in enumerate(layers.items()):
             outer_pad_h = self.cfg.outer_pad_h // pad_divisor if ind > n_cols - 1 else self.cfg.outer_pad_h
@@ -189,10 +217,14 @@ class KeymapDrawer(ComboDrawerMixin, UtilsMixin):
                 for key_ind, (p_key, l_key) in enumerate(zip(layout.keys, layer_keys)):
                     self.print_key(p_key, l_key, key_ind)
 
+                # draw trackballs to temp buffer
+                if draw_trackballs:
+                    self.print_trackballs(name)
+
                 # draw combos to temp buffer and calculate top/bottom y coordinates
                 min_y, max_y = self.print_combos_for_layer(combos_per_layer.get(name, []))
                 top_y = 0.0 if min_y is None else min(0.0, min_y)
-                bottom_y = layout.height if max_y is None else max(layout.height, max_y)
+                bottom_y = layout_height if max_y is None else max(layout_height, max_y)
 
                 # shift by the top y coordinate, then dump the temp buffer
                 writer.write(f'<g transform="translate(0, {round(outer_pad_h - top_y)})">\n')
@@ -239,6 +271,7 @@ class KeymapDrawer(ComboDrawerMixin, UtilsMixin):
                     self.cfg.n_columns * self.cfg.combo_diagrams_scale,
                     draw_header=False,
                     pad_divisor=self.cfg.combo_diagrams_scale,
+                    draw_trackballs=False,
                 )
 
         # write to final output stream self.output_stream

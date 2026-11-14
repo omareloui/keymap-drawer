@@ -26,6 +26,19 @@ class DrawConfig(BaseSettings, env_prefix="KEYMAP_", extra="ignore"):
         rx: float = 4
         ry: float = 4
 
+    class TrackballSpec(BaseModel):
+        """A trackball (or any round pointing device) drawn as a circle next to the keys, for `trackballs` config."""
+
+        # center position in key units (multiples of key_h), relative to the top left of the physical layout
+        x: float
+        y: float
+        # radius in key units
+        r: float = 1.0
+        # optional legend drawn at the center, can use glyphs
+        legend: str = ""
+        # names of the layers to draw the trackball on, draw on all layers if empty
+        layers: list[str] = []
+
     # key dimensions, non-ortho layouts use key_h for width as well
     key_w: float = 60
     key_h: float = 56
@@ -85,6 +98,9 @@ class DrawConfig(BaseSettings, env_prefix="KEYMAP_", extra="ignore"):
     # key side parameters
     key_side_pars: KeySidePars = KeySidePars()
 
+    # trackballs (round pointing devices) to draw alongside the keys of each layer
+    trackballs: list[TrackballSpec] = []
+
     # style CSS to be output in the SVG
     # if you do not need to remove existing definitions, consider using svg_extra_style instead
     svg_style: str = Field(
@@ -110,6 +126,19 @@ class DrawConfig(BaseSettings, env_prefix="KEYMAP_", extra="ignore"):
             }
 
             rect.key, rect.combo {
+                stroke: #c9cccf;
+                stroke-width: 1;
+            }
+
+            /* default trackball styling, only used if trackballs are set */
+            circle.trackball {
+                fill: #f6f8fa;
+                stroke: #c9cccf;
+                stroke-width: 1;
+            }
+
+            circle.trackball-ball {
+                fill: #e1e4e8;
                 stroke: #c9cccf;
                 stroke-width: 1;
             }
@@ -224,6 +253,8 @@ class DrawConfig(BaseSettings, env_prefix="KEYMAP_", extra="ignore"):
             svg.keymap { fill: #d1d6db; }
             rect.key { fill: #3f4750; }
             rect.key, rect.combo { stroke: #60666c; }
+            circle.trackball { fill: #3f4750; stroke: #60666c; }
+            circle.trackball-ball { fill: #2d333a; stroke: #60666c; }
             rect.combo, rect.combo-separate { fill: #1f3d7a; }
             rect.held, rect.combo.held { fill: #854747; }
             text.label, text.footer { stroke: black; }
