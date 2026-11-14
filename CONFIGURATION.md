@@ -149,6 +149,19 @@ A mapping of certain field names to their values, characterizing key side drawin
 - **`rel_w`**, **`rel_y`** (type: `float`): Delta dimension between external key rectangle and internal key rectangle. _Default:_ `12`, `12`
 - **`rx`**, **`ry`** (type: `float`): Curvature of the rounded internal key rectangle. _Default:_ `4`, `4`
 
+#### `draw_board`
+
+Draw the body (case) of the keyboard under the keys of each layer, for keyboards with a known outline.
+Outlines are looked up by the `qmk_keyboard` of the physical layout from [`resources/board_outlines.yaml`](resources/board_outlines.yaml);
+a warning is logged and nothing is drawn for other keyboards. Supported keyboards: `zsa/voyager`.
+
+The body is not drawn on combo diagrams. Trackball housings (see [`trackballs`](#trackballs)) are drawn under the body and the trackball
+rings and balls over it. It can be styled with the `path.board` CSS selector in `svg_extra_style`.
+
+_Type:_ `bool`
+
+_Default:_ `false`
+
 #### `trackballs`
 
 A list of trackballs (or other round pointing devices) to draw as circles alongside the keys of each layer.

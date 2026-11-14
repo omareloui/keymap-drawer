@@ -105,6 +105,10 @@ class DrawConfig(BaseSettings, env_prefix="KEYMAP_", extra="ignore"):
     # key side parameters
     key_side_pars: KeySidePars = KeySidePars()
 
+    # draw the body (case) of the keyboard under the keys, for keyboards with a known outline
+    # (see resources/board_outlines.yaml), only supported for `qmk_keyboard` physical layouts
+    draw_board: bool = False
+
     # trackballs (round pointing devices) to draw alongside the keys of each layer
     trackballs: list[TrackballSpec] = []
 
@@ -133,6 +137,13 @@ class DrawConfig(BaseSettings, env_prefix="KEYMAP_", extra="ignore"):
             }
 
             rect.key, rect.combo {
+                stroke: #c9cccf;
+                stroke-width: 1;
+            }
+
+            /* default keyboard body styling, only used if draw_board is set */
+            path.board {
+                fill: #eef0f2;
                 stroke: #c9cccf;
                 stroke-width: 1;
             }
@@ -260,6 +271,7 @@ class DrawConfig(BaseSettings, env_prefix="KEYMAP_", extra="ignore"):
             svg.keymap { fill: #d1d6db; }
             rect.key { fill: #3f4750; }
             rect.key, rect.combo { stroke: #60666c; }
+            path.board { fill: #2a3037; stroke: #60666c; }
             circle.trackball, path.trackball-housing { fill: #3f4750; stroke: #60666c; }
             circle.trackball-ball { fill: #2d333a; stroke: #60666c; }
             rect.combo, rect.combo-separate { fill: #1f3d7a; }

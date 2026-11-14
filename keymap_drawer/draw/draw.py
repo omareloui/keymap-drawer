@@ -4,17 +4,22 @@ keymap with layers and optionally combo definitions, then can draw an SVG
 representation of the keymap using these two.
 """
 
+import logging
 import re
 from copy import deepcopy
 from html import escape
 from io import StringIO
-from typing import Mapping, Sequence, TextIO
+from typing import Literal, Mapping, Sequence, TextIO
+
+import yaml
 
 from keymap_drawer.config import Config
 from keymap_drawer.draw.combo import ComboDrawerMixin
 from keymap_drawer.draw.utils import UtilsMixin
 from keymap_drawer.keymap import ComboSpec, KeymapData, LayoutKey
-from keymap_drawer.physical_layout import PhysicalKey, PhysicalLayout, Point
+from keymap_drawer.physical_layout import BOARD_OUTLINES_PATH, PhysicalKey, PhysicalLayout, Point
+
+logger = logging.getLogger(__name__)
 
 
 class KeymapDrawer(ComboDrawerMixin, UtilsMixin):
@@ -30,6 +35,21 @@ class KeymapDrawer(ComboDrawerMixin, UtilsMixin):
         self.layer_names = set()
         self.output_stream = out
         self.out = StringIO()
+        self.board_outline = self._load_board_outline(kwargs.get("layout") or {}) if self.cfg.draw_board else None
+
+    def _load_board_outline(self, layout_spec: Mapping) -> tuple[Point, str] | None:
+        """Return the origin (in pixels) and path data (in key units) of the keyboard body outline, if known."""
+        keyboard = layout_spec.get("qmk_keyboard")
+        with open(BOARD_OUTLINES_PATH, "rb") as f:
+            outlines = yaml.safe_load(f)
+        if keyboard not in outlines:
+            logger.warning('draw_board is set but there is no body outline for keyboard "%s", skipping', keyboard)
+            return None
+        outline = outlines[keyboard]
+        if (anchor := outline["anchor_key"]) >= len(self.layout.keys):
+            logger.warning("draw_board is set but the physical layout has too few keys for the body outline, skipping")
+            return None
+        return self.layout.keys[anchor].pos, " ".join(outline["path"].split())
 
     def print_layer_header(self, p: Point, header: str) -> None:
         """Print a layer header that precedes the layer visualization."""
@@ -181,36 +201,58 @@ class KeymapDrawer(ComboDrawerMixin, UtilsMixin):
             points += coords
         return points
 
-    def trackballs_extent(self) -> Point:
-        """Return the bottom right coordinate covered by all configured trackballs, in pixels."""
-        if not self.cfg.trackballs:
-            return Point(0.0, 0.0)
+    def extras_bounds(self) -> tuple[Point, Point]:
+        """Return the top left and bottom right coordinates covered by the body outline and trackballs, in pixels."""
         points = []
+        if self.board_outline is not None:
+            origin, path = self.board_outline
+            points += [origin + p * self.cfg.key_h for p in self._path_points(path)]
         for t in self.cfg.trackballs:
             center = Point(t.x, t.y)
-            points += [center + Point(t.r, t.r)]
+            points += [(center - Point(t.r, t.r)) * self.cfg.key_h, (center + Point(t.r, t.r)) * self.cfg.key_h]
             if t.draw_housing:
-                points += [center + p for p in self._path_points(t.housing)]
-        return Point(max(p.x for p in points) * self.cfg.key_h, max(p.y for p in points) * self.cfg.key_h)
+                points += [(center + p) * self.cfg.key_h for p in self._path_points(t.housing)]
+        if not points:
+            return Point(0.0, 0.0), Point(0.0, 0.0)
+        return (
+            Point(min(p.x for p in points), min(p.y for p in points)),
+            Point(max(p.x for p in points), max(p.y for p in points)),
+        )
 
-    def print_trackballs(self, layer_name: str) -> None:
-        """Print SVG code for the trackballs configured to be drawn on the given layer."""
+    def print_board_outline(self) -> None:
+        """Print SVG code for the keyboard body outline, if enabled and known."""
+        if self.board_outline is None:
+            return
+        origin, path = self.board_outline
+        self.out.write(
+            f'<path d="{escape(path)}" transform="translate({round(origin.x, 2)}, {round(origin.y, 2)}) '
+            f'scale({self.cfg.key_h})" vector-effect="non-scaling-stroke" class="board"/>\n'
+        )
+
+    def print_trackballs(self, layer_name: str, part: Literal["housing", "ball"]) -> None:
+        """
+        Print SVG code for the trackballs configured to be drawn on the given layer. Housings and balls (with their
+        rings) are printed in separate passes so that the keyboard body can be drawn between them.
+        """
         for ind, trackball in enumerate(self.cfg.trackballs):
             if trackball.layers and layer_name not in trackball.layers:
                 continue
+            if part == "housing" and not (trackball.housing and trackball.draw_housing):
+                continue
             center = Point(trackball.x, trackball.y) * self.cfg.key_h
-            radius = trackball.r * self.cfg.key_h - self.cfg.inner_pad_w
             self.out.write(
                 f'<g transform="translate({round(center.x)}, {round(center.y)})" class="trackball trackball-{ind}">\n'
             )
-            if trackball.housing and trackball.draw_housing:
+            if part == "housing":
                 self.out.write(
                     f'<path d="{escape(trackball.housing)}" transform="scale({self.cfg.key_h})" '
                     'vector-effect="non-scaling-stroke" class="trackball-housing"/>\n'
                 )
-            self.out.write(f'<circle r="{round(radius)}" class="trackball"/>\n')
-            self.out.write(f'<circle r="{round(radius * trackball.ball_ratio)}" class="trackball-ball"/>\n')
-            self._draw_legend(Point(0, 0), [trackball.legend], classes=["trackball"], legend_type="tap")
+            else:
+                radius = trackball.r * self.cfg.key_h - self.cfg.inner_pad_w
+                self.out.write(f'<circle r="{round(radius)}" class="trackball"/>\n')
+                self.out.write(f'<circle r="{round(radius * trackball.ball_ratio)}" class="trackball-ball"/>\n')
+                self._draw_legend(Point(0, 0), [trackball.legend], classes=["trackball"], legend_type="tap")
             self.out.write("</g>\n")
 
     def print_layers(  # pylint: disable=too-many-locals,too-many-arguments
@@ -222,7 +264,7 @@ class KeymapDrawer(ComboDrawerMixin, UtilsMixin):
         n_cols: int = 1,
         draw_header: bool = True,
         pad_divisor: int = 1,
-        draw_trackballs: bool = True,
+        draw_extras: bool = True,
     ) -> Point:
         """
         Print SVG code for keys for all layers (including combos on them) starting at coordinate p,
@@ -231,9 +273,11 @@ class KeymapDrawer(ComboDrawerMixin, UtilsMixin):
         outer_pad_w = self.cfg.outer_pad_w // pad_divisor
         p += Point(self.cfg.outer_pad_w - outer_pad_w, 0)
         original_x = p.x
-        trackballs_extent = self.trackballs_extent() if draw_trackballs else Point(0.0, 0.0)
-        layout_width = max(layout.width, trackballs_extent.x)
-        layout_height = max(layout.height, trackballs_extent.y)
+        # extras are the keyboard body outline and trackballs, which can extend past the keys in any direction
+        extras_min, extras_max = self.extras_bounds() if draw_extras else (Point(0.0, 0.0), Point(0.0, 0.0))
+        left_x = min(0.0, extras_min.x)
+        layout_width = max(layout.width, extras_max.x) - left_x
+        layout_height = max(layout.height, extras_max.y)
         col_width = layout_width + 2 * outer_pad_w
         max_height = 0.0
         for ind, (name, layer_keys) in enumerate(layers.items()):
@@ -253,9 +297,12 @@ class KeymapDrawer(ComboDrawerMixin, UtilsMixin):
                 writer = self.out
                 self.out = temp_buffer
 
-                # draw trackballs to temp buffer, before the keys so that keys are drawn over their housings
-                if draw_trackballs:
-                    self.print_trackballs(name)
+                # draw trackball housings, body outline and trackballs to temp buffer, in that order (housings sit
+                # under the keyboard body), before the keys so that keys are drawn over them
+                if draw_extras:
+                    self.print_trackballs(name, "housing")
+                    self.print_board_outline()
+                    self.print_trackballs(name, "ball")
 
                 # draw keys to temp buffer
                 for key_ind, (p_key, l_key) in enumerate(zip(layout.keys, layer_keys)):
@@ -263,11 +310,11 @@ class KeymapDrawer(ComboDrawerMixin, UtilsMixin):
 
                 # draw combos to temp buffer and calculate top/bottom y coordinates
                 min_y, max_y = self.print_combos_for_layer(combos_per_layer.get(name, []))
-                top_y = 0.0 if min_y is None else min(0.0, min_y)
+                top_y = min(0.0, extras_min.y) if min_y is None else min(0.0, extras_min.y, min_y)
                 bottom_y = layout_height if max_y is None else max(layout_height, max_y)
 
                 # shift by the top y coordinate, then dump the temp buffer
-                writer.write(f'<g transform="translate(0, {round(outer_pad_h - top_y)})">\n')
+                writer.write(f'<g transform="translate({round(-left_x)}, {round(outer_pad_h - top_y)})">\n')
                 writer.write(temp_buffer.getvalue())
                 writer.write("</g>\n")
                 writer.write("</g>\n")
@@ -311,7 +358,7 @@ class KeymapDrawer(ComboDrawerMixin, UtilsMixin):
                     self.cfg.n_columns * self.cfg.combo_diagrams_scale,
                     draw_header=False,
                     pad_divisor=self.cfg.combo_diagrams_scale,
-                    draw_trackballs=False,
+                    draw_extras=False,
                 )
 
         # write to final output stream self.output_stream

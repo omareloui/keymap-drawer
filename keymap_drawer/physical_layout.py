@@ -34,6 +34,7 @@ ZMK_SHARED_LAYOUTS_URL = (
 )
 CACHE_LAYOUTS_PATH = Path(user_cache_dir("keymap-drawer", False)) / "qmk_layouts"
 QMK_MAPPINGS_PATH = Path(__file__).parent.parent / "resources" / "qmk_keyboard_mappings.yaml"
+BOARD_OUTLINES_PATH = Path(__file__).parent.parent / "resources" / "board_outlines.yaml"
 
 
 @dataclass(frozen=True, slots=True)
